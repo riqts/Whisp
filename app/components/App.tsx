@@ -10,6 +10,7 @@ import {
 import {
   setupMicrophone,
   startMicrophone,
+  stopMicrophone,
   MicrophoneState,
 } from "../lib/redux/features/microphoneSlice";
 import Visualizer from "./Visualizer";
@@ -36,7 +37,7 @@ const App: React.FC = () => {
   }, [dispatch]);
 
   useEffect(() => {
-    if (microphoneState === MicrophoneState.Ready) {
+    if (microphoneState === MicrophoneState.Open) {
       dispatch(
         connectToDeepgram({
           options: {
@@ -54,6 +55,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!microphone) return;
     if (!connection) return;
+    if (microphoneState !== MicrophoneState.Open) return;
 
     const onData = (e: BlobEvent) => {
       if (e.data.size > 0) {
@@ -83,8 +85,6 @@ const App: React.FC = () => {
     if (connectionState === LiveConnectionState.OPEN) {
       connection.addListener(LiveTranscriptionEvents.Transcript, onTranscript);
       microphone.addEventListener("dataavailable", onData);
-
-      dispatch(startMicrophone());
     }
 
     return () => {
@@ -95,7 +95,7 @@ const App: React.FC = () => {
       microphone.removeEventListener("dataavailable", onData);
       clearTimeout(captionTimeout.current);
     };
-  }, [connectionState, connection, microphone, dispatch]);
+  }, [connectionState, connection, microphone, microphoneState]);
 
   useEffect(() => {
     if (!connection) return;
@@ -118,6 +118,17 @@ const App: React.FC = () => {
     };
   }, [microphoneState, connectionState, connection]);
 
+  const toggleRecording = () => {
+    if (microphoneState === MicrophoneState.Open) {
+      dispatch(stopMicrophone());
+    } else if (
+      microphoneState === MicrophoneState.Ready ||
+      microphoneState === MicrophoneState.Paused
+    ) {
+      dispatch(startMicrophone());
+    }
+  };
+
   return (
     <>
       <div className="flex h-full antialiased">
@@ -128,6 +139,17 @@ const App: React.FC = () => {
               <div className="absolute bottom-[8rem] inset-x-0 max-w-4xl mx-auto text-center">
                 {caption && <span className="bg-black/70 p-8">{caption}</span>}
               </div>
+              <button
+                onClick={toggleRecording}
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full z-10"
+                disabled={
+                  microphoneState === MicrophoneState.SettingUp ||
+                  microphoneState === MicrophoneState.Opening ||
+                  microphoneState === MicrophoneState.Pausing
+                }
+              >
+                {microphoneState === MicrophoneState.Open ? "Pause" : "Record"}
+              </button>
             </div>
           </div>
         </div>
